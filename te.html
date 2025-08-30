@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vue 3 Mini Todo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Vue 3 через CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb; --accent:#22c55e; --danger:#f43f5e; }
+    *{box-sizing:border-box} body{margin:0;font-family:ui-sans-serif,system-ui;background:var(--bg);color:var(--text)}
+    .container{max-width:900px;margin:40px auto;padding:0 16px}
+    .panel{background:var(--card);border-radius:14px;padding:16px 18px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    h1{margin:0 0 10px;font-size:24px}
+    .row{display:flex;gap:10px;align-items:center}
+    .grow{flex:1}
+    input,select,button{border-radius:10px;border:1px solid #334155;background:#0b1220;color:var(--text);padding:10px 12px}
+    input::placeholder{color:#64748b}
+    button{cursor:pointer}
+    .btn{background:#1f2937;border:1px solid #334155}
+    .btn-prim{background:var(--accent);border:0;color:#052e16;font-weight:600}
+    .btn-danger{background:var(--danger);border:0}
+    .pill{font-size:12px;color:var(--muted)}
+    .list{margin-top:14px;display:grid;gap:8px}
+    .item{display:flex;gap:10px;align-items:center;background:#0b1220;border:1px solid #23314a;padding:10px 12px;border-radius:12px}
+    .item.done{opacity:.65;text-decoration:line-through}
+    .empty{color:var(--muted);text-align:center;padding:22px}
+    .foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;color:var(--muted);font-size:13px}
+    .sr{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
+  </style>
+</head>
+<body>
+  <div id="app" class="container">
+    <div class="panel">
+      <h1>Мини-ToDo на Vue 3</h1>
+      <!-- Ввод и фильтры -->
+      <div class="row" style="margin-bottom:10px">
+        <task-input class="grow" v-model="draft" @submit="addTask" />
+        <select v-model="status">
+          <option value="all">Все</option>
+          <option value="open">Открытые</option>
+          <option value="done">Сделанные</option>
+        </select>
+        <input class="grow" v-model.trim="query" placeholder="Поиск по названию…" />
+        <button class="btn" @click="toggleSort">Сорт: {{ sortAsc ? '▲' : '▼' }}</button>
+      </div>
+
+      <!-- Список задач -->
+      <div class="list" v-if="filteredAndSorted.length">
+        <task-item
+          v-for="t in filteredAndSorted"
+          :key="t.id"
+          :task="t"
+          @toggle="toggleTask"
+          @remove="removeTask"
+          @rename="renameTask"
+        />
+      </div>
+      <div v-else class="empty">Задач нет — добавьте первую выше 👆</div>
+
+      <!-- Подвал с итого -->
+      <div class="foot">
+        <span>Всего: {{ tasks.length }} • Открытых: {{ remaining }} • Готово: {{ done }} </span>
+        <div class="row">
+          <button class="btn" @click="seed">Засеять пример</button>
+          <button class="btn-danger" @click="clearAll" :disabled="!tasks.length">Очистить всё</button>
+        </div>
+      </div>
+    </div>
+    <p class="pill">Хранение: <code>localStorage</code> • Компоненты: <code>&lt;task-input&gt;</code>, <code>&lt;task-item&gt;</code></p>
+  </div>
+
+  <script>
+    const { createApp, ref, computed, watch, onMounted, defineComponent } = Vue;
+
+    // Компонент ввода с поддержкой v-model и submit
+    const TaskInput = defineComponent({
+      name: 'TaskInput',
+      props: { modelValue: { type: String, default: '' } },
+      emits: ['update:modelValue', 'submit'],
+      template: `
+        <form class="row grow" @submit.prevent="$emit('submit', modelValue.trim())">
+          <label class="sr" for="taskTitle">Новая задача</label>
+          <input id="taskTitle" class="grow"
+                 :value="modelValue"
+                 @input="$emit('update:modelValue', $event.target.value)"
+                 placeholder="Новая задача… (Enter — добавить)" />
+          <button class="btn-prim" type="submit">Добавить</button>
+        </form>
+      `
+    });
+
+    // Элемент списка задач
+    const TaskItem = defineComponent({
+      name: 'TaskItem',
+      props: {
+        task: {
+          type: Object,
+          required: true // { id, title, done, createdAt }
+        }
+      },
+      emits: ['toggle', 'remove', 'rename'],
+      data() {
+        return { editing: false, draft: this.task.title };
+      },
+      watch: {
+        task: {
+          immediate: true,
+          handler(newVal) { if (!this.editing) this.draft = newVal.title; }
+        }
+      },
+      methods: {
+        startEdit() { this.editing = true; this.$nextTick(() => this.$refs.input?.focus()); },
+        commit() {
+          const name = this.draft.trim();
+          if (name && name !== this.task.title) this.$emit('rename', this.task.id, name);
+          this.editing = false;
+        }
+      },
+      template: `
+        <div class="item" :class="{ done: task.done }">
+          <input type="checkbox" :checked="task.done" @change="$emit('toggle', task.id)" />
+          <template v-if="!editing">
+            <span class="grow">{{ task.title }}</span>
+            <button class="btn" @click="startEdit">✏️</button>
+          </template>
+          <template v-else>
+            <input ref="input" class="grow" v-model.trim="draft" @keyup.enter="commit" @blur="commit" />
+          </template>
+          <button class="btn-danger" @click="$emit('remove', task.id)">Удалить</button>
+        </div>
+      `
+    });
+
+    createApp({
+      components: { 'task-input': TaskInput, 'task-item': TaskItem },
+      setup() {
+        // Состояние
+        const tasks = ref([]);
+        const draft = ref('');
+        const query = ref('');
+        const status = ref('all'); // all | open | done
+        const sortAsc = ref(true);
+
+        // Загрузка/сохранение из localStorage
+        const STORAGE_KEY = 'vue-mini-todo';
+        onMounted(() => {
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            tasks.value = raw ? JSON.parse(raw) : [];
+          } catch (_) { tasks.value = []; }
+        });
+        watch(tasks, (val) => {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(val));
+        }, { deep: true });
+
+        // Вычисляемые значения
+        const remaining = computed(() => tasks.value.filter(t => !t.done).length);
+        const done = computed(() => tasks.value.length - remaining.value);
+
+        const filteredAndSorted = computed(() => {
+          const q = query.value.toLowerCase();
+          let arr = tasks.value.filter(t =>
+            (!q || t.title.toLowerCase().includes(q)) &&
+            (status.value === 'all' || (status.value === 'open' ? !t.done : t.done))
+          );
+          arr = arr.slice().sort((a,b) => sortAsc.value
+            ? a.createdAt - b.createdAt
+            : b.createdAt - a.createdAt);
+          return arr;
+        });
+
+        // Действия
+        function addTask(title) {
+          const name = (title ?? draft.value).trim();
+          if (!name) return;
+          tasks.value.push({
+            id: crypto.randomUUID?.() ?? String(Date.now() + Math.random()),
+            title: name,
+            done: false,
+            createdAt: Date.now()
+          });
+          draft.value = '';
+        }
+        function toggleTask(id) {
+          const t = tasks.value.find(t => t.id === id);
+          if (t) t.done = !t.done;
+        }
+        function removeTask(id) {
+          tasks.value = tasks.value.filter(t => t.id !== id);
+        }
+        function renameTask(id, title) {
+          const t = tasks.value.find(t => t.id === id);
+          if (t) t.title = title;
+        }
+        function clearAll() { tasks.value = []; }
+        function seed() {
+          if (tasks.value.length) return;
+          ['Проверить почту','Позвонить клиенту','Сделать бэкап'].forEach((t,i)=> {
+            tasks.value.push({ id: String(Date.now()+i), title:t, done:i===0, createdAt: Date.now()+i });
+          });
+        }
+        function toggleSort(){ sortAsc.value = !sortAsc.value; }
+
+        return {
+          // state
+          tasks, draft, query, status, sortAsc,
+          // computed
+          filteredAndSorted, remaining, done,
+          // actions
+          addTask, toggleTask, removeTask, renameTask, clearAll, seed, toggleSort
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
