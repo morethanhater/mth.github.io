@@ -1,43 +1,40 @@
 (function () {
-    console.log("Блокировка рекламы активирована");
+    'use strict';
+    console.log("[AdBlock] Скрипт очистки VAST запущен");
 
-    // Подменяем проверку подписки (премиум аккаунт)
-    window.Account = window.Account || {};
-    window.Account.hasPremium = () => true;
+    // 1. Подменяем Lampa.Player.play, чтобы перед запуском вычищать рекламные ссылки из объекта элемента
+    let originalPlay = Lampa.Player.play;
 
-    // Ломаем создание <video> для рекламы
-    document.createElement = new Proxy(document.createElement, {
-        apply(target, thisArg, args) {
-            if (args[0] === "video") {
-                console.log("Перехватываем создание <video> для рекламы!");
+    Lampa.Player.play = function (item) {
+        if (item) {
+            // Если передан одиночный объект или массив
+            let items = Array.isArray(item) ? item : [item];
+            
+            items.forEach(file => {
+                if (file.vast_url) {
+                    console.log("[AdBlock] Удалена VAST ссылка:", file.vast_url);
+                    delete file.vast_url;
+                    delete file.vast_msg;
+                    delete file.vast_region;
+                    delete file.vast_platform;
+                    delete file.vast_screen;
+                }
+            });
+        }
 
-                let fakeVideo = target.apply(thisArg, args);
+        // Вызываем оригинальный плеер уже с "чистым" объектом
+        return originalPlay.apply(this, arguments);
+    };
 
-                // Запрещаем рекламе воспроизводиться
-                fakeVideo.play = function () {
-                    console.log("Рекламное видео заблокировано!");
-                    setTimeout(() => {
-                        fakeVideo.ended = true;
-                        fakeVideo.dispatchEvent(new Event("ended")); // Эмулируем завершение рекламы
-                    }, 500);
-                };
-
-                return fakeVideo;
+    // 2. Блокировка фонового RCH (если нужно отключить фоновый eval и проксирование)
+    if (window.WebSocket) {
+        let OrigWS = window.WebSocket;
+        window.WebSocket = function (url, protocols) {
+            if (typeof url === 'string' && url.includes('z01.online')) {
+                console.log("[AdBlock] Заблокировано WebSocket-подключение RCH к z01");
+                return {}; // Возвращаем пустышку
             }
-            return target.apply(thisArg, args);
-        }
-    });
-
-    // Очищаем таймеры рекламы
-    function clearAdTimers() {
-        console.log("Очищаем рекламные таймеры...");
-        let highestTimeout = setTimeout(() => {}, 0);
-        for (let i = 0; i <= highestTimeout; i++) {
-            clearTimeout(i);
-            clearInterval(i);
-        }
+            return new OrigWS(url, protocols);
+        };
     }
-
-    // Убираем рекламу после загрузки страницы
-    document.addEventListener("DOMContentLoaded", clearAdTimers);
 })();
