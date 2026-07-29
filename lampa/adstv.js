@@ -9,7 +9,16 @@
         const origSend = XMLHttpRequest.prototype.send;
 
         XMLHttpRequest.prototype.open = function (method, url) {
-            this._isVast = typeof url === 'string' && (url.includes('vast') || url.includes('ad/'));
+            const urlStr = typeof url === 'string' ? url : '';
+            
+            // Исключаем служебные домены BWA и проверяем VAST с косыми чертами (/ad/)
+            const isBwa = urlStr.includes('bwa.ad');
+            this._isVast = !isBwa && (
+                urlStr.includes('vast') || 
+                urlStr.includes('/ad/') || 
+                urlStr.includes('adserver')
+            );
+
             return origOpen.apply(this, arguments);
         };
 
