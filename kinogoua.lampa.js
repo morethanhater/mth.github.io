@@ -17,7 +17,12 @@
     network.timeout(15000);
     network.silent(API + path, success, function (error) {
       failure((error && error.status) ? 'Сервер недоступен (' + error.status + ')' : 'Сервер недоступен');
-    }, false, { dataType: 'json' });
+    }, false, { 
+      dataType: 'json',
+      headers: {
+        'skip_zrok_interstitial': '1'
+      }
+    });
   }
 
   function play(item, items) {
