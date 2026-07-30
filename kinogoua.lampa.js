@@ -9,7 +9,7 @@
   // window.KinogoUAPluginConfig = { api: 'https://api.example.org' };
   var scriptUrl = document.currentScript && document.currentScript.src;
   var inferredApi = scriptUrl && scriptUrl.replace(/\/kinogoua\.lampa\.js(?:[?#].*)?$/, '');
-  var API = ((window.KinogoUAPluginConfig && window.KinogoUAPluginConfig.api) || inferredApi || 'http://127.0.0.1:8787').replace(/\/$/, '');
+  var API = ((window.KinogoUAPluginConfig && window.KinogoUAPluginConfig.api) || inferredApi || 'https://mth-video-service.shares.zrok.io/').replace(/\/$/, '');
 
   function request(path, success, failure) {
     var network = new Lampa.Reguest();
