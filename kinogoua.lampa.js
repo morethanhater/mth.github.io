@@ -4,12 +4,13 @@
   if (window.kinogoua_lampa_plugin) return;
   window.kinogoua_lampa_plugin = true;
 
-  // The API is inferred from the plugin URL. A manual value is useful only
-  // when static files and API are intentionally hosted on different domains.
+  // The backend is public through zrok, while this file is hosted separately
+  // on GitHub Pages. A manual value can still override it when needed.
   // window.KinogoUAPluginConfig = { api: 'https://api.example.org' };
   var scriptUrl = document.currentScript && document.currentScript.src;
   var inferredApi = scriptUrl && scriptUrl.replace(/\/kinogoua\.lampa\.js(?:[?#].*)?$/, '');
-  var API = ((window.KinogoUAPluginConfig && window.KinogoUAPluginConfig.api) || inferredApi || 'https://mth-video-service.shares.zrok.io/').replace(/\/$/, '');
+  var DEFAULT_API = 'https://mth-video-service.shares.zrok.io';
+  var API = ((window.KinogoUAPluginConfig && window.KinogoUAPluginConfig.api) || DEFAULT_API || inferredApi || 'http://127.0.0.1:8787').replace(/\/$/, '');
 
   function request(path, success, failure) {
     var network = new Lampa.Reguest();
