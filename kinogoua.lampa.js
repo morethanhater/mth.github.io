@@ -198,7 +198,17 @@
     function apiRequest(path, success, failure) {
       network.clear();
       network.silent(API + path, success, function (error) {
-        failure((error && error.status) ? 'Сервер недоступен (' + error.status + ')' : 'Сервер недоступен');
+        var msg = 'Сервер недоступен';
+        if (error && error.responseText) {
+          try {
+            var parsed = JSON.parse(error.responseText);
+            if (parsed && parsed.error) msg = parsed.error;
+          } catch (e) {}
+        }
+        if (msg === 'Сервер недоступен' && error && error.status) {
+          msg = 'Сервер недоступен (' + error.status + ')';
+        }
+        failure(msg);
       }, false, {
         dataType: 'json',
         headers: { 'skip_zrok_interstitial': '1' }
