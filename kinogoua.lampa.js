@@ -58,6 +58,10 @@
       + '.online-prestige{position:relative;display:-webkit-box;display:-webkit-flex;display:-moz-box;display:-ms-flexbox;display:flex;-webkit-box-align:center;-webkit-align-items:center;-moz-box-align:center;-ms-flex-align:center;align-items:center;background-color:rgba(255,255,255,0.05);padding:1.2em;-webkit-border-radius:0.5em;border-radius:0.5em;margin-bottom:0.8em;cursor:pointer}'
       + '.online-prestige.focus{background-color:rgba(255,255,255,0.18)}'
       + '.online-prestige.focus::after{content:"";position:absolute;top:-0.2em;left:-0.2em;right:-0.2em;bottom:-0.2em;-webkit-border-radius:0.7em;border-radius:0.7em;border:solid 0.25em #fff;z-index:2;pointer-events:none}'
+      + '.online-prestige__img{position:relative;width:5.5em;height:3.5em;margin-right:1.2em;border-radius:0.4em;overflow:hidden;background:rgba(255,255,255,0.08);flex-shrink:0;display:flex;align-items:center;justify-content:center}'
+      + '.online-prestige__img img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 0.3s}'
+      + '.online-prestige__img--loaded img{opacity:1}'
+      + '.online-prestige__episode-number{position:absolute;bottom:0.2em;right:0.2em;background:rgba(0,0,0,0.75);padding:0.1em 0.4em;border-radius:0.3em;font-size:0.75em;font-weight:bold;color:#fff}'
       + '.online-prestige__folder{width:3.5em;height:3em;margin-right:1.2em;display:flex;align-items:center;justify-content:center;flex-shrink:0}'
       + '.online-prestige__folder svg{width:100%;height:100%}'
       + '.online-prestige__body{-webkit-box-flex:1;-webkit-flex-grow:1;-moz-box-flex:1;-ms-flex-positive:1;flex-grow:1;overflow:hidden}'
@@ -81,6 +85,7 @@
 
     Lampa.Template.add('kinogoua_prestige_full',
       '<div class="online-prestige online-prestige--full selector">'
+      + '<div class="online-prestige__img"><img src="" alt="" /></div>'
       + '<div class="online-prestige__body">'
       + '<div class="online-prestige__head">'
       + '<div class="online-prestige__title">{title}</div>'
@@ -418,6 +423,25 @@
       filter.chosen('filter', chosenText);
     };
 
+    this.getEpisodes = function (seasonNumber, call) {
+      var episodes = [];
+      var cardObj = (object && object.movie) || object || {};
+      var tmdb_id = cardObj.id;
+      if (['cub', 'tmdb'].indexOf(cardObj.source || 'tmdb') === -1) {
+        tmdb_id = cardObj.tmdb_id;
+      }
+      if (typeof tmdb_id === 'number' && cardObj.name && Lampa.Api && Lampa.Api.sources && Lampa.Api.sources.tmdb) {
+        Lampa.Api.sources.tmdb.get('tv/' + tmdb_id + '/season/' + seasonNumber, {}, function (data) {
+          episodes = (data && data.episodes) || [];
+          call(episodes);
+        }, function () {
+          call([]);
+        });
+      } else {
+        call([]);
+      }
+    };
+
     this.renderEpisodesForSeason = function (seasonIndex) {
       var _this = this;
       this.loading(false);
@@ -434,30 +458,62 @@
 
       var watched = Lampa.Storage.cache('online_view', 5000, []);
 
-      (season.episodes || []).forEach(function (episode) {
-        var epTitle = episode.title || ('Серия ' + (episode.episode || 1));
-        var cardTitle = (loaded_content && loaded_content.title) || (object && object.movie && (object.movie.title || object.movie.name)) || '';
-        var epKey = cardTitle + '_s' + season.season + '_e' + (episode.episode || 1);
-        var isWatched = watched.indexOf(epKey) !== -1;
+      this.getEpisodes(season.season, function (tmdbEpisodes) {
+        if (!_this.isActive()) return;
 
-        var item = Lampa.Template.get('kinogoua_prestige_full', {
-          title: epTitle,
-          time: episode.duration ? Math.round(episode.duration / 60) + ' мин' : '',
-          info: cardTitle + ' — ' + season.season + ' сезон',
-          quality: 'HLS'
+        (season.episodes || []).forEach(function (episode) {
+          var tmdbEp = (tmdbEpisodes || []).find(function (e) {
+            return e.episode_number == episode.episode;
+          });
+
+          var epTitle = (tmdbEp && tmdbEp.name) || episode.title || ('Серия ' + (episode.episode || 1));
+          var cardTitle = (loaded_content && loaded_content.title) || (object && object.movie && (object.movie.title || object.movie.name)) || '';
+          var epKey = cardTitle + '_s' + season.season + '_e' + (episode.episode || 1);
+          var isWatched = watched.indexOf(epKey) !== -1;
+
+          var durationMin = (tmdbEp && tmdbEp.runtime) ? tmdbEp.runtime : (episode.duration ? Math.round(episode.duration / 60) : 0);
+
+          var item = Lampa.Template.get('kinogoua_prestige_full', {
+            title: epTitle,
+            time: durationMin ? durationMin + ' мин' : '',
+            info: cardTitle + ' — ' + season.season + ' сезон',
+            quality: 'HLS'
+          });
+
+          if (isWatched) item.addClass('kinogoua-watched');
+
+          var imageContainer = item.find('.online-prestige__img');
+          var imgEl = item.find('img')[0];
+          var stillPath = tmdbEp && tmdbEp.still_path;
+          var backdropPath = object && object.movie && object.movie.backdrop_path;
+          var imagePath = stillPath || backdropPath;
+
+          if (imagePath && imgEl && Lampa.TMDB) {
+            imgEl.onerror = function () {
+              imageContainer.hide();
+            };
+            imgEl.onload = function () {
+              imageContainer.addClass('online-prestige__img--loaded');
+            };
+            imgEl.src = Lampa.TMDB.image('t/p/w300' + imagePath);
+          } else if (imageContainer) {
+            imageContainer.hide();
+          }
+
+          if (episode.episode && imageContainer) {
+            imageContainer.append('<div class="online-prestige__episode-number">' + (episode.episode < 10 ? '0' : '') + episode.episode + '</div>');
+          }
+
+          item.on('hover:enter', function () {
+            last_focused = item[0];
+            _this.play(episode, season.episodes, epKey, item);
+          });
+
+          scroll.append(item);
         });
 
-        if (isWatched) item.addClass('kinogoua-watched');
-
-        item.on('hover:enter', function () {
-          last_focused = item[0];
-          _this.play(episode, season.episodes, epKey, item);
-        });
-
-        scroll.append(item);
+        _this.enableController();
       });
-
-      this.enableController();
     };
 
     this.renderMovieEpisodes = function (episodes) {
@@ -483,6 +539,22 @@
         });
 
         if (isWatched) item.addClass('kinogoua-watched');
+
+        var imageContainer = item.find('.online-prestige__img');
+        var imgEl = item.find('img')[0];
+        var backdropPath = object && object.movie && object.movie.backdrop_path;
+
+        if (backdropPath && imgEl && Lampa.TMDB) {
+          imgEl.onerror = function () {
+            imageContainer.hide();
+          };
+          imgEl.onload = function () {
+            imageContainer.addClass('online-prestige__img--loaded');
+          };
+          imgEl.src = Lampa.TMDB.image('t/p/w300' + backdropPath);
+        } else if (imageContainer) {
+          imageContainer.hide();
+        }
 
         item.on('hover:enter', function () {
           last_focused = item[0];
