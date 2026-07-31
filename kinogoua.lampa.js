@@ -161,14 +161,10 @@
             clarificationDelete();
             object.search = object.movie.title || object.movie.name;
             _this.startSearch(object.search);
-            setTimeout(Lampa.Select.close, 10);
           } else if (a.stype === 'season' && loaded_content && loaded_content.seasons) {
             selected_season_index = b.index;
             _this.renderEpisodesForSeason(selected_season_index);
-            setTimeout(Lampa.Select.close, 10);
           }
-        } else if (type === 'sort') {
-          setTimeout(Lampa.Select.close, 10);
         }
       };
 
