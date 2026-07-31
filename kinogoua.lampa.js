@@ -9,6 +9,48 @@
   var DEFAULT_API = 'https://mth-video-service.shares.zrok.io';
   var API = ((window.KinogoUAPluginConfig && window.KinogoUAPluginConfig.api) || DEFAULT_API || inferredApi || 'http://127.0.0.1:8787').replace(/\/$/, '');
 
+  // --- zrok interstitial bypass ---
+  // HLS.js and other browser components make their own XHR/fetch requests to our
+  // proxy without the skip_zrok_interstitial header. Without it, zrok returns an
+  // interstitial HTML page (no CORS) instead of proxying to our server, causing
+  // "Script error." and "MissingAllowOriginHeader". Intercept both XHR and fetch
+  // to automatically inject the header for all requests to our server domain.
+  (function injectZrokBypass() {
+    var proxyHost;
+    try { proxyHost = new URL(API).host; } catch (e) { return; }
+
+    // Intercept XMLHttpRequest (used by HLS.js)
+    var _xhrOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function () {
+      var url = arguments[1];
+      if (typeof url === 'string' && url.indexOf(proxyHost) !== -1) {
+        this._isProxyReq = true;
+      }
+      return _xhrOpen.apply(this, arguments);
+    };
+    var _xhrSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function () {
+      if (this._isProxyReq) {
+        try { this.setRequestHeader('skip_zrok_interstitial', '1'); } catch (e) {}
+      }
+      return _xhrSend.apply(this, arguments);
+    };
+
+    // Intercept fetch (some HLS.js builds use fetch)
+    var _fetch = window.fetch;
+    if (_fetch) {
+      window.fetch = function (input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        if (url.indexOf(proxyHost) !== -1) {
+          init = init || {};
+          init.headers = new Headers(init.headers || {});
+          init.headers.set('skip_zrok_interstitial', '1');
+        }
+        return _fetch.call(window, input, init);
+      };
+    }
+  })();
+
   function resetTemplates() {
     if ($('#kinogoua_css').length) return;
 
