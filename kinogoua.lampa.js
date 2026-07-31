@@ -408,14 +408,15 @@
       var watched = Lampa.Storage.cache('online_view', 5000, []);
 
       (season.episodes || []).forEach(function (episode) {
-        var epTitle = episode.title || ('Серия ' + episode.episode);
-        var epKey = (loaded_content.title || object.movie.title) + '_s' + season.season + '_e' + episode.episode;
+        var epTitle = episode.title || ('Серия ' + (episode.episode || 1));
+        var cardTitle = (loaded_content && loaded_content.title) || (object && object.movie && (object.movie.title || object.movie.name)) || '';
+        var epKey = cardTitle + '_s' + season.season + '_e' + (episode.episode || 1);
         var isWatched = watched.indexOf(epKey) !== -1;
 
         var item = Lampa.Template.get('kinogoua_prestige_full', {
           title: epTitle,
           time: episode.duration ? Math.round(episode.duration / 60) + ' мин' : '',
-          info: (loaded_content.title || object.movie.title) + ' — ' + season.season + ' сезон',
+          info: cardTitle + ' — ' + season.season + ' сезон',
           quality: 'HLS'
         });
 
@@ -442,8 +443,9 @@
       var watched = Lampa.Storage.cache('online_view', 5000, []);
 
       (episodes || []).forEach(function (episode) {
-        var epTitle = loaded_content.title || episode.title || 'Смотреть фильм';
-        var epKey = (loaded_content.title || object.movie.title) + '_movie';
+        var cardTitle = (loaded_content && loaded_content.title) || (object && object.movie && (object.movie.title || object.movie.name)) || '';
+        var epTitle = cardTitle || episode.title || 'Смотреть фильм';
+        var epKey = cardTitle + '_movie';
         var isWatched = watched.indexOf(epKey) !== -1;
 
         var item = Lampa.Template.get('kinogoua_prestige_full', {
@@ -499,12 +501,12 @@
       });
 
       var index = (items || []).indexOf(item);
-      var first = playlist[index !== -1 ? index : 0] || (function () {
+      var targetItem = playlist[index !== -1 ? index : 0] || (function () {
         var qual = {};
         qual['HLS'] = item.url;
         var subs = (item.subtitles || []).map(function (s) { return { label: s.label, src: s.url }; });
         return {
-          title: item.title || ('Серия ' + item.episode),
+          title: item.title || ('Серия ' + (item.episode || 1)),
           url: item.url,
           quality: qual,
           season: item.season,
@@ -514,6 +516,9 @@
         };
       })();
 
+      // Shallow copy targetItem to prevent circular reference when setting first.playlist = playlist.
+      // (Otherwise targetItem in playlist holds reference to playlist, creating infinite nesting)
+      var first = Object.assign({}, targetItem);
       first.isonline = true;
       if (playlist.length > 1) first.playlist = playlist;
 
