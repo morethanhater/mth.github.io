@@ -441,27 +441,36 @@
       var playlist = (items || []).map(function (elem) {
         var qual = {};
         qual['HLS'] = elem.url;
+        // Lampa.Player expects subtitles as [{label, src}], not [{label, url}]
+        var subs = (elem.subtitles || []).map(function (s) {
+          return { label: s.label, src: s.url };
+        });
         return {
           title: elem.title || ('Серия ' + elem.episode),
           url: elem.url,
           quality: qual,
           season: elem.season,
           episode: elem.episode,
-          subtitles: elem.subtitles,
+          subtitles: subs.length ? subs : undefined,
           duration: elem.duration
         };
       });
 
       var index = (items || []).indexOf(item);
-      var first = playlist[index !== -1 ? index : 0] || {
-        title: item.title || ('Серия ' + item.episode),
-        url: item.url,
-        quality: { 'HLS': item.url },
-        season: item.season,
-        episode: item.episode,
-        subtitles: item.subtitles,
-        duration: item.duration
-      };
+      var first = playlist[index !== -1 ? index : 0] || (function () {
+        var qual = {};
+        qual['HLS'] = item.url;
+        var subs = (item.subtitles || []).map(function (s) { return { label: s.label, src: s.url }; });
+        return {
+          title: item.title || ('Серия ' + item.episode),
+          url: item.url,
+          quality: qual,
+          season: item.season,
+          episode: item.episode,
+          subtitles: subs.length ? subs : undefined,
+          duration: item.duration
+        };
+      })();
 
       first.isonline = true;
       if (playlist.length > 1) first.playlist = playlist;
