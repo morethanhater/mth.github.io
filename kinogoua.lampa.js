@@ -27,10 +27,6 @@
       + '.online-prestige__quality{font-size:0.8em;padding:0.2em 0.5em;background:rgba(255,255,255,0.15);border-radius:0.3em;font-weight:600}'
       + '.kinogoua-watched{opacity:0.5}'
       + '.kinogoua-watched .online-prestige__title::before{content:"✓ ";color:#28a745;font-weight:bold}'
-      + '.kinogoua-seasons-bar{display:flex;flex-wrap:wrap;gap:0.6em;margin-bottom:1.2em;padding-bottom:0.8em;border-bottom:1px solid rgba(255,255,255,0.1)}'
-      + '.kinogoua-season-btn{padding:0.6em 1.2em;background:rgba(255,255,255,0.08);border-radius:0.4em;font-size:1.1em;font-weight:500;cursor:pointer;white-space:nowrap}'
-      + '.kinogoua-season-btn.active{background:rgba(255,255,255,0.25);color:#fff}'
-      + '.kinogoua-season-btn.focus{background:#fff;color:#000}'
       + '.online-empty{line-height:1.4;padding:2em;text-align:center}'
       + '.online-empty__title{font-size:1.6em;margin-bottom:0.4em}'
       + '.online-empty__time{font-size:1.1em;opacity:0.6;margin-bottom:1.5em}'
@@ -177,14 +173,24 @@
 
       if (filter.addButtonBack) filter.addButtonBack();
 
-      filter.render().find('.filter--search').appendTo(filter.render().find('.torrent-filter'));
-      filter.render().find('.filter--sort span').text('Источник');
+      var filterRender = filter.render();
+      filterRender.find('.filter--search').appendTo(filterRender.find('.torrent-filter'));
+      filterRender.find('.filter--sort span').text('Источник');
+
+      // Bind explicit click/hover handlers to ensure side panel opens on Filter click
+      filterRender.find('.filter--open, .filter--filter').on('hover:enter click', function () {
+        filter.show('Фильтр', 'filter');
+      });
+      filterRender.find('.filter--sort').on('hover:enter click', function () {
+        filter.show('Источник', 'sort');
+      });
+
       filter.set('sort', [{ title: 'KinogoUA', source: 'kinogoua', selected: true }]);
       filter.chosen('sort', ['KinogoUA']);
 
       scroll.body().addClass('torrent-list');
       files.appendFiles(scroll.render());
-      files.appendHead(filter.render());
+      files.appendHead(filterRender);
       scroll.minus(files.render().find('.explorer__files-head'));
 
       var initialSearch = object.search || object.movie.title || object.movie.name || object.movie.original_title || object.movie.original_name;
@@ -228,7 +234,6 @@
 
         search_results = response.results;
 
-        // Find best match by year if available
         var targetYear = (object.movie.year || (object.movie.first_air_date ? object.movie.first_air_date.substr(0, 4) : '')) + '';
         var matchedResult = null;
 
@@ -319,6 +324,7 @@
         filter_items.push({
           title: 'Сезон',
           stype: 'season',
+          subtitle: (loaded_content.seasons[selected_season_index] ? loaded_content.seasons[selected_season_index].season : 1) + ' сезон',
           items: seasonItems
         });
       }
@@ -350,21 +356,6 @@
       var season = loaded_content.seasons[seasonIndex];
 
       this.updateFilterHeader();
-
-      // Render season bar if multiple seasons
-      if (loaded_content.seasons.length > 1) {
-        var seasonsBar = $('<div class="kinogoua-seasons-bar"></div>');
-        loaded_content.seasons.forEach(function (s, idx) {
-          var btn = $('<div class="kinogoua-season-btn selector' + (idx === seasonIndex ? ' active' : '') + '">' + s.season + ' сезон</div>');
-          btn.on('hover:enter', function () {
-            last_focused = btn[0];
-            selected_season_index = idx;
-            _this.renderEpisodesForSeason(idx);
-          });
-          seasonsBar.append(btn);
-        });
-        scroll.append(seasonsBar);
-      }
 
       var watched = Lampa.Storage.cache('online_view', 5000, []);
 
