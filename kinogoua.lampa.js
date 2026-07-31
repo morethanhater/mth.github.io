@@ -151,7 +151,7 @@
       };
 
       filter.onBack = function () {
-        _this.start();
+        _this.back();
       };
 
       filter.onSelect = function (type, a, b) {
@@ -432,13 +432,16 @@
       }
 
       var playlist = (items || []).map(function (elem) {
+        var qual = {};
+        qual['HLS'] = elem.url;
         return {
           title: elem.title || ('Серия ' + elem.episode),
           url: elem.url,
+          quality: qual,
           season: elem.season,
           episode: elem.episode,
-          subtitles: elem.subtitles,
-          duration: elem.duration
+          subtitles: elem.subtitles || [],
+          timeline: { time: 0, duration: elem.duration || 0 }
         };
       });
 
@@ -446,10 +449,11 @@
       var first = playlist[index !== -1 ? index : 0] || {
         title: item.title || ('Серия ' + item.episode),
         url: item.url,
+        quality: { 'HLS': item.url },
         season: item.season,
         episode: item.episode,
-        subtitles: item.subtitles,
-        duration: item.duration
+        subtitles: item.subtitles || [],
+        timeline: { time: 0, duration: item.duration || 0 }
       };
 
       first.isonline = true;
