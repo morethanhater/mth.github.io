@@ -27,6 +27,10 @@
       + '.online-prestige__quality{font-size:0.8em;padding:0.2em 0.5em;background:rgba(255,255,255,0.15);border-radius:0.3em;font-weight:600}'
       + '.kinogoua-watched{opacity:0.5}'
       + '.kinogoua-watched .online-prestige__title::before{content:"✓ ";color:#28a745;font-weight:bold}'
+      + '.kinogoua-seasons-bar{display:flex;flex-wrap:wrap;gap:0.6em;margin-bottom:1.2em;padding-bottom:0.8em;border-bottom:1px solid rgba(255,255,255,0.1)}'
+      + '.kinogoua-season-btn{padding:0.6em 1.2em;background:rgba(255,255,255,0.08);border-radius:0.4em;font-size:1.1em;font-weight:500;cursor:pointer;white-space:nowrap}'
+      + '.kinogoua-season-btn.active{background:rgba(255,255,255,0.25);color:#fff}'
+      + '.kinogoua-season-btn.focus{background:#fff;color:#000}'
       + '.online-empty{line-height:1.4;padding:2em;text-align:center}'
       + '.online-empty__title{font-size:1.6em;margin-bottom:0.4em}'
       + '.online-empty__time{font-size:1.1em;opacity:0.6;margin-bottom:1.5em}'
@@ -105,8 +109,7 @@
 
     var search_results = [];
     var loaded_content = null;
-    var current_view = 'none'; // 'search', 'seasons', 'episodes', 'error'
-    var selected_season = null;
+    var selected_season_index = 0;
 
     this.activity = object.activity;
 
@@ -163,13 +166,21 @@
             _this.startSearch(object.search);
             setTimeout(Lampa.Select.close, 10);
           } else if (a.stype === 'season' && loaded_content && loaded_content.seasons) {
-            _this.showSeasonEpisodes(loaded_content.seasons[b.index]);
+            selected_season_index = b.index;
+            _this.renderEpisodesForSeason(selected_season_index);
             setTimeout(Lampa.Select.close, 10);
           }
+        } else if (type === 'sort') {
+          setTimeout(Lampa.Select.close, 10);
         }
       };
 
       if (filter.addButtonBack) filter.addButtonBack();
+
+      filter.render().find('.filter--search').appendTo(filter.render().find('.torrent-filter'));
+      filter.render().find('.filter--sort span').text('Источник');
+      filter.set('sort', [{ title: 'KinogoUA', source: 'kinogoua', selected: true }]);
+      filter.chosen('sort', ['KinogoUA']);
 
       scroll.body().addClass('torrent-list');
       files.appendFiles(scroll.render());
@@ -195,7 +206,6 @@
 
     this.empty = function (message) {
       this.loading(false);
-      current_view = 'error';
       scroll.clear();
       var emptyEl = Lampa.Template.get('kinogoua_does_not_answer', {
         title: 'KinogoUA',
@@ -217,8 +227,21 @@
         }
 
         search_results = response.results;
+
+        // Find best match by year if available
+        var targetYear = (object.movie.year || (object.movie.first_air_date ? object.movie.first_air_date.substr(0, 4) : '')) + '';
+        var matchedResult = null;
+
         if (search_results.length === 1) {
-          _this.loadContent(search_results[0].url);
+          matchedResult = search_results[0];
+        } else if (targetYear) {
+          matchedResult = search_results.find(function (r) {
+            return r.year && String(r.year) === targetYear;
+          });
+        }
+
+        if (matchedResult) {
+          _this.loadContent(matchedResult.url);
         } else {
           _this.renderSearchResults(search_results);
         }
@@ -231,11 +254,10 @@
     this.renderSearchResults = function (results) {
       var _this = this;
       this.loading(false);
-      current_view = 'search';
       scroll.clear();
 
-      filter.set('filter', []);
-      filter.render().find('.filter--search').removeClass('hide');
+      filter.set('filter', [{ title: 'Сбросить поиск', reset: true }]);
+      filter.chosen('filter', []);
 
       results.forEach(function (result) {
         var item = Lampa.Template.get('kinogoua_prestige_folder', {
@@ -266,6 +288,7 @@
         }
 
         loaded_content = content;
+        selected_season_index = 0;
         _this.renderContent(content);
       }, function (err) {
         if (!_this.isActive()) return;
@@ -274,59 +297,73 @@
     };
 
     this.renderContent = function (content) {
-      this.loading(false);
       if (content.kind === 'series') {
-        if (content.seasons && content.seasons.length === 1) {
-          this.showSeasonEpisodes(content.seasons[0]);
-        } else {
-          this.renderSeasonsList(content.seasons || []);
-        }
+        this.renderEpisodesForSeason(selected_season_index);
       } else {
         this.renderMovieEpisodes(content.episodes || []);
       }
     };
 
-    this.renderSeasonsList = function (seasons) {
-      var _this = this;
-      this.loading(false);
-      current_view = 'seasons';
-      scroll.clear();
+    this.updateFilterHeader = function () {
+      var filter_items = [];
 
-      filter.set('filter', []);
-
-      seasons.forEach(function (season) {
-        var item = Lampa.Template.get('kinogoua_prestige_folder', {
-          title: 'Сезон ' + season.season,
-          time: season.episodes ? season.episodes.length + ' сер.' : '',
-          info: loaded_content.title || ''
+      if (loaded_content && loaded_content.kind === 'series' && loaded_content.seasons && loaded_content.seasons.length > 0) {
+        var seasonItems = loaded_content.seasons.map(function (s, idx) {
+          return {
+            title: s.season + ' сезон',
+            selected: idx === selected_season_index,
+            index: idx
+          };
         });
 
-        item.on('hover:enter', function () {
-          last_focused = item[0];
-          _this.showSeasonEpisodes(season);
-        });
-
-        scroll.append(item);
-      });
-
-      this.enableController();
-    };
-
-    this.showSeasonEpisodes = function (season) {
-      var _this = this;
-      this.loading(false);
-      selected_season = season;
-      current_view = 'episodes';
-      scroll.clear();
-
-      if (loaded_content && loaded_content.seasons && loaded_content.seasons.length > 1) {
-        filter.set('filter', [{
+        filter_items.push({
           title: 'Сезон',
           stype: 'season',
-          items: loaded_content.seasons.map(function (s, idx) {
-            return { title: 'Сезон ' + s.season, selected: s.season === season.season, index: idx };
-          })
-        }]);
+          items: seasonItems
+        });
+      }
+
+      filter_items.push({
+        title: 'Сбросить поиск',
+        reset: true
+      });
+
+      filter.set('filter', filter_items);
+
+      var chosenText = [];
+      if (loaded_content && loaded_content.kind === 'series' && loaded_content.seasons && loaded_content.seasons[selected_season_index]) {
+        chosenText.push('Сезон: ' + loaded_content.seasons[selected_season_index].season + ' сезон');
+      }
+      filter.chosen('filter', chosenText);
+    };
+
+    this.renderEpisodesForSeason = function (seasonIndex) {
+      var _this = this;
+      this.loading(false);
+      scroll.clear();
+
+      if (!loaded_content || !loaded_content.seasons || !loaded_content.seasons[seasonIndex]) {
+        return this.empty('Сезон не найден');
+      }
+
+      selected_season_index = seasonIndex;
+      var season = loaded_content.seasons[seasonIndex];
+
+      this.updateFilterHeader();
+
+      // Render season bar if multiple seasons
+      if (loaded_content.seasons.length > 1) {
+        var seasonsBar = $('<div class="kinogoua-seasons-bar"></div>');
+        loaded_content.seasons.forEach(function (s, idx) {
+          var btn = $('<div class="kinogoua-season-btn selector' + (idx === seasonIndex ? ' active' : '') + '">' + s.season + ' сезон</div>');
+          btn.on('hover:enter', function () {
+            last_focused = btn[0];
+            selected_season_index = idx;
+            _this.renderEpisodesForSeason(idx);
+          });
+          seasonsBar.append(btn);
+        });
+        scroll.append(seasonsBar);
       }
 
       var watched = Lampa.Storage.cache('online_view', 5000, []);
@@ -339,7 +376,7 @@
         var item = Lampa.Template.get('kinogoua_prestige_full', {
           title: epTitle,
           time: episode.duration ? Math.round(episode.duration / 60) + ' мин' : '',
-          info: loaded_content.title || '',
+          info: (loaded_content.title || object.movie.title) + ' — ' + season.season + ' сезон',
           quality: 'HLS'
         });
 
@@ -359,14 +396,13 @@
     this.renderMovieEpisodes = function (episodes) {
       var _this = this;
       this.loading(false);
-      current_view = 'episodes';
       scroll.clear();
 
-      filter.set('filter', []);
+      this.updateFilterHeader();
 
       var watched = Lampa.Storage.cache('online_view', 5000, []);
 
-      episodes.forEach(function (episode) {
+      (episodes || []).forEach(function (episode) {
         var epTitle = loaded_content.title || episode.title || 'Смотреть фильм';
         var epKey = (loaded_content.title || object.movie.title) + '_movie';
         var isWatched = watched.indexOf(epKey) !== -1;
@@ -374,7 +410,7 @@
         var item = Lampa.Template.get('kinogoua_prestige_full', {
           title: epTitle,
           time: episode.duration ? Math.round(episode.duration / 60) + ' мин' : '',
-          info: 'Фильм',
+          info: 'Фильм (HLS)',
           quality: 'HLS'
         });
 
@@ -400,7 +436,7 @@
         }
       }
 
-      var playlist = items.map(function (entry) {
+      var playlist = (items || []).map(function (entry) {
         return {
           title: entry.title ? ('Серия ' + entry.episode + ' — ' + entry.title) : ('Серия ' + entry.episode),
           url: entry.url,
@@ -484,10 +520,7 @@
     };
 
     this.back = function () {
-      if (current_view === 'episodes' && loaded_content && loaded_content.kind === 'series' && loaded_content.seasons && loaded_content.seasons.length > 1) {
-        last_focused = false;
-        this.renderSeasonsList(loaded_content.seasons);
-      } else if ((current_view === 'episodes' || current_view === 'seasons') && search_results && search_results.length > 1) {
+      if (search_results && search_results.length > 1) {
         last_focused = false;
         this.renderSearchResults(search_results);
       } else {
