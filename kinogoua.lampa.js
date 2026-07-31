@@ -431,45 +431,32 @@
         return Lampa.Noty.show('Ссылка на видео отсутствует');
       }
 
-      var index = (items || []).indexOf(item);
-      if (index === -1) index = 0;
-
-      var playlist = (items || []).map(function (entry) {
+      var playlist = (items || []).map(function (elem) {
         return {
-          title: entry.title || (entry.episode ? ('Серия ' + entry.episode) : 'Воспроизвести'),
-          url: entry.url,
-          season: entry.season,
-          episode: entry.episode,
-          subtitles: entry.subtitles || [],
-          duration: entry.duration || 0,
-          timeline: { time: 0, duration: entry.duration || 0 }
+          title: elem.title || ('Серия ' + elem.episode),
+          url: elem.url,
+          season: elem.season,
+          episode: elem.episode,
+          subtitles: elem.subtitles,
+          duration: elem.duration
         };
       });
 
-      var target = playlist[index] || {
-        title: item.title || 'Воспроизвести',
+      var index = (items || []).indexOf(item);
+      var first = playlist[index !== -1 ? index : 0] || {
+        title: item.title || ('Серия ' + item.episode),
         url: item.url,
         season: item.season,
         episode: item.episode,
-        subtitles: item.subtitles || [],
-        duration: item.duration || 0,
-        timeline: { time: 0, duration: item.duration || 0 }
+        subtitles: item.subtitles,
+        duration: item.duration
       };
 
-      target.isonline = true;
-      if (playlist.length > 1) {
-        target.playlist = playlist;
-      }
+      first.isonline = true;
+      if (playlist.length > 1) first.playlist = playlist;
 
-      try {
-        Lampa.Player.play(target);
-        if (playlist.length > 1) {
-          Lampa.Player.playlist(playlist);
-        }
-      } catch (err) {
-        console.error('KinogoUA Player Error:', err);
-        Lampa.Noty.show('Ошибка запуска плеера');
-      }
+      Lampa.Player.play(first);
+      Lampa.Player.playlist(playlist);
     };
 
     this.enableController = function () {
