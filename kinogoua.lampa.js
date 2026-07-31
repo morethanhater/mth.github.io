@@ -637,6 +637,7 @@
 
     this.enableController = function () {
       var _this = this;
+      var nav = (typeof Navigator !== 'undefined') ? Navigator : (window.Navigator || Lampa.Navigator);
       try {
         Lampa.Controller.add('content', {
           toggle: function toggle() {
@@ -647,8 +648,8 @@
           },
           up: function up() {
             try {
-              if (Lampa.Navigator && Lampa.Navigator.canmove && Lampa.Navigator.canmove('up')) {
-                Lampa.Navigator.move('up');
+              if (nav && nav.canmove && nav.canmove('up')) {
+                nav.move('up');
               } else {
                 Lampa.Controller.toggle('head');
               }
@@ -658,15 +659,15 @@
           },
           down: function down() {
             try {
-              if (Lampa.Navigator && Lampa.Navigator.move) {
-                Lampa.Navigator.move('down');
+              if (nav && nav.move) {
+                nav.move('down');
               }
             } catch (e) {}
           },
           right: function right() {
             try {
-              if (Lampa.Navigator && Lampa.Navigator.canmove && Lampa.Navigator.canmove('right')) {
-                Lampa.Navigator.move('right');
+              if (nav && nav.canmove && nav.canmove('right')) {
+                nav.move('right');
               } else {
                 filter_is_open = true;
                 filter.show('Фильтр', 'filter');
@@ -680,8 +681,8 @@
           },
           left: function left() {
             try {
-              if (Lampa.Navigator && Lampa.Navigator.canmove && Lampa.Navigator.canmove('left')) {
-                Lampa.Navigator.move('left');
+              if (nav && nav.canmove && nav.canmove('left')) {
+                nav.move('left');
               } else {
                 Lampa.Controller.toggle('menu');
               }
