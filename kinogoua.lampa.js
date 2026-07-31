@@ -153,6 +153,7 @@
 
     var search_results = [];
     var loaded_content = null;
+    var selected_source_index = 0;
     var selected_season_index = 0;
     var user_selected_search_item = false;
     var filter_is_open = false;
@@ -230,6 +231,9 @@
             var cardObj = (object && object.movie) || object || {};
             var title = cardObj.title || cardObj.name || '';
             _this.startSearch(title, false);
+          } else if (a.stype === 'source' && loaded_content && loaded_content.sourceUrl) {
+            selected_source_index = b.source_idx;
+            _this.loadContent(loaded_content.sourceUrl, selected_source_index);
           } else if (a.stype === 'season' && loaded_content && loaded_content.seasons) {
             selected_season_index = b.index;
             _this.renderEpisodesForSeason(selected_season_index);
@@ -366,17 +370,19 @@
       this.enableController();
     };
 
-    this.loadContent = function (url) {
+    this.loadContent = function (url, sourceIdx) {
       var _this = this;
       this.loading(true);
+      var idx = (sourceIdx !== undefined) ? sourceIdx : selected_source_index;
 
-      apiRequest('/v1/content?url=' + encodeURIComponent(url), function (content) {
+      apiRequest('/v1/content?url=' + encodeURIComponent(url) + '&source_idx=' + idx, function (content) {
         if (!_this.isActive()) return;
         if (!content || !content.kind) {
           return _this.empty((content && content.error) || 'Не удалось загрузить данные источника');
         }
 
         loaded_content = content;
+        selected_source_index = (content.selectedSourceIndex !== undefined) ? content.selectedSourceIndex : idx;
         selected_season_index = 0;
         _this.renderContent(content);
       }, function (err) {
@@ -395,6 +401,24 @@
 
     this.updateFilterHeader = function () {
       var filter_items = [];
+
+      if (loaded_content && loaded_content.sources && loaded_content.sources.length > 1) {
+        var sourceItems = loaded_content.sources.map(function (s) {
+          return {
+            title: s.title,
+            selected: s.sourceIndex === selected_source_index,
+            source_idx: s.sourceIndex
+          };
+        });
+
+        var currentSource = loaded_content.sources.find(function (s) { return s.sourceIndex === selected_source_index; });
+        filter_items.push({
+          title: 'Плеер',
+          stype: 'source',
+          subtitle: currentSource ? currentSource.title : 'Смотреть онлайн',
+          items: sourceItems
+        });
+      }
 
       if (loaded_content && loaded_content.kind === 'series' && loaded_content.seasons && loaded_content.seasons.length > 0) {
         var seasonItems = loaded_content.seasons.map(function (s, idx) {
@@ -421,6 +445,9 @@
       filter.set('filter', filter_items);
 
       var chosenText = [];
+      if (loaded_content && loaded_content.sources && loaded_content.sources[selected_source_index]) {
+        chosenText.push('Плеер: ' + (loaded_content.sources[selected_source_index].title || ''));
+      }
       if (loaded_content && loaded_content.kind === 'series' && loaded_content.seasons && loaded_content.seasons[selected_season_index]) {
         chosenText.push('Сезон: ' + loaded_content.seasons[selected_season_index].season + ' сезон');
       }
