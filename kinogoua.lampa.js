@@ -106,6 +106,7 @@
     var search_results = [];
     var loaded_content = null;
     var selected_season_index = 0;
+    var user_selected_search_item = false;
 
     this.activity = object.activity;
 
@@ -224,6 +225,7 @@
       var _this = this;
       if (!query) return this.empty('Не указано название для поиска');
 
+      user_selected_search_item = false;
       this.loading(true);
       apiRequest('/v1/search?q=' + encodeURIComponent(query), function (response) {
         if (!_this.isActive()) return;
@@ -272,6 +274,7 @@
 
         item.on('hover:enter', function () {
           last_focused = item[0];
+          user_selected_search_item = true;
           _this.loadContent(result.url);
         });
 
@@ -440,8 +443,8 @@
           quality: qual,
           season: elem.season,
           episode: elem.episode,
-          subtitles: elem.subtitles || [],
-          timeline: { time: 0, duration: elem.duration || 0 }
+          subtitles: elem.subtitles,
+          duration: elem.duration
         };
       });
 
@@ -452,8 +455,8 @@
         quality: { 'HLS': item.url },
         season: item.season,
         episode: item.episode,
-        subtitles: item.subtitles || [],
-        timeline: { time: 0, duration: item.duration || 0 }
+        subtitles: item.subtitles,
+        duration: item.duration
       };
 
       first.isonline = true;
@@ -520,7 +523,8 @@
     };
 
     this.back = function () {
-      if (search_results && search_results.length > 1) {
+      if (user_selected_search_item && search_results && search_results.length > 1) {
+        user_selected_search_item = false;
         last_focused = false;
         this.renderSearchResults(search_results);
       } else {
