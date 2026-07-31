@@ -355,6 +355,9 @@
           last_focused = item[0];
           user_selected_search_item = true;
           _this.loadContent(result.url);
+        }).on('hover:focus', function (e) {
+          last_focused = e.target;
+          try { scroll.update($(e.target), true); } catch (err) {}
         });
 
         scroll.append(item);
@@ -508,6 +511,9 @@
           item.on('hover:enter', function () {
             last_focused = item[0];
             _this.play(episode, season.episodes, epKey, item);
+          }).on('hover:focus', function (e) {
+            last_focused = e.target;
+            try { scroll.update($(e.target), true); } catch (err) {}
           });
 
           scroll.append(item);
@@ -560,6 +566,9 @@
         item.on('hover:enter', function () {
           last_focused = item[0];
           _this.play(episode, episodes, epKey, item);
+        }).on('hover:focus', function (e) {
+          last_focused = e.target;
+          try { scroll.update($(e.target), true); } catch (err) {}
         });
 
         scroll.append(item);
@@ -628,46 +637,73 @@
 
     this.enableController = function () {
       var _this = this;
-      Lampa.Controller.add('content', {
-        toggle: function toggle() {
-          Lampa.Controller.collectionSet(scroll.render(), files.render());
-          Lampa.Controller.collectionFocus(last_focused || false, scroll.render());
-        },
-        up: function up() {
-          if (Lampa.Navigator.canmove('up')) {
-            Lampa.Navigator.move('up');
-          } else {
-            Lampa.Controller.toggle('head');
+      try {
+        Lampa.Controller.add('content', {
+          toggle: function toggle() {
+            try {
+              Lampa.Controller.collectionSet(scroll.render(), files.render());
+              Lampa.Controller.collectionFocus(last_focused || false, scroll.render());
+            } catch (e) {}
+          },
+          up: function up() {
+            try {
+              if (Lampa.Navigator && Lampa.Navigator.canmove && Lampa.Navigator.canmove('up')) {
+                Lampa.Navigator.move('up');
+              } else {
+                Lampa.Controller.toggle('head');
+              }
+            } catch (e) {
+              try { Lampa.Controller.toggle('head'); } catch (err) {}
+            }
+          },
+          down: function down() {
+            try {
+              if (Lampa.Navigator && Lampa.Navigator.move) {
+                Lampa.Navigator.move('down');
+              }
+            } catch (e) {}
+          },
+          right: function right() {
+            try {
+              if (Lampa.Navigator && Lampa.Navigator.canmove && Lampa.Navigator.canmove('right')) {
+                Lampa.Navigator.move('right');
+              } else {
+                filter_is_open = true;
+                filter.show('Фильтр', 'filter');
+              }
+            } catch (e) {
+              try {
+                filter_is_open = true;
+                filter.show('Фильтр', 'filter');
+              } catch (err) {}
+            }
+          },
+          left: function left() {
+            try {
+              if (Lampa.Navigator && Lampa.Navigator.canmove && Lampa.Navigator.canmove('left')) {
+                Lampa.Navigator.move('left');
+              } else {
+                Lampa.Controller.toggle('menu');
+              }
+            } catch (e) {
+              try { Lampa.Controller.toggle('menu'); } catch (err) {}
+            }
+          },
+          back: function back() {
+            try {
+              if (filter_is_open) {
+                filter_is_open = false;
+                _this.enableController();
+              } else {
+                _this.back();
+              }
+            } catch (e) {
+              try { Lampa.Activity.backward(); } catch (err) {}
+            }
           }
-        },
-        down: function down() {
-          Lampa.Navigator.move('down');
-        },
-        right: function right() {
-          if (Lampa.Navigator.canmove('right')) {
-            Lampa.Navigator.move('right');
-          } else {
-            filter_is_open = true;
-            filter.show('Фильтр', 'filter');
-          }
-        },
-        left: function left() {
-          if (Lampa.Navigator.canmove('left')) {
-            Lampa.Navigator.move('left');
-          } else {
-            Lampa.Controller.toggle('menu');
-          }
-        },
-        back: function back() {
-          if (filter_is_open) {
-            filter_is_open = false;
-            _this.enableController();
-          } else {
-            _this.back();
-          }
-        }
-      });
-      Lampa.Controller.toggle('content');
+        });
+        Lampa.Controller.toggle('content');
+      } catch (e) {}
     };
 
     this.create = function () {
