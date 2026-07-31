@@ -177,7 +177,6 @@
       filterRender.find('.filter--search').appendTo(filterRender.find('.torrent-filter'));
       filterRender.find('.filter--sort span').text('Источник');
 
-      // Bind explicit click/hover handlers to ensure side panel opens on Filter click
       filterRender.find('.filter--open, .filter--filter').on('hover:enter click', function () {
         filter.show('Фильтр', 'filter');
       });
@@ -360,7 +359,7 @@
       var watched = Lampa.Storage.cache('online_view', 5000, []);
 
       (season.episodes || []).forEach(function (episode) {
-        var epTitle = 'Серия ' + episode.episode + (episode.title ? ' — ' + episode.title : '');
+        var epTitle = episode.title || ('Серия ' + episode.episode);
         var epKey = (loaded_content.title || object.movie.title) + '_s' + season.season + '_e' + episode.episode;
         var isWatched = watched.indexOf(epKey) !== -1;
 
@@ -375,7 +374,7 @@
 
         item.on('hover:enter', function () {
           last_focused = item[0];
-          _this.play(episode, season.episodes, epKey);
+          _this.play(episode, season.episodes, epKey, item);
         });
 
         scroll.append(item);
@@ -409,7 +408,7 @@
 
         item.on('hover:enter', function () {
           last_focused = item[0];
-          _this.play(episode, episodes, epKey);
+          _this.play(episode, episodes, epKey, item);
         });
 
         scroll.append(item);
@@ -418,40 +417,59 @@
       this.enableController();
     };
 
-    this.play = function (item, items, watchKey) {
+    this.play = function (item, items, watchKey, elementDom) {
       if (watchKey) {
         var watched = Lampa.Storage.cache('online_view', 5000, []);
         if (watched.indexOf(watchKey) === -1) {
           watched.push(watchKey);
           Lampa.Storage.set('online_view', watched);
         }
+        if (elementDom) elementDom.addClass('kinogoua-watched');
       }
+
+      if (!item || !item.url) {
+        return Lampa.Noty.show('Ссылка на видео отсутствует');
+      }
+
+      var index = (items || []).indexOf(item);
+      if (index === -1) index = 0;
 
       var playlist = (items || []).map(function (entry) {
         return {
-          title: entry.title ? ('Серия ' + entry.episode + ' — ' + entry.title) : ('Серия ' + entry.episode),
+          title: entry.title || (entry.episode ? ('Серия ' + entry.episode) : 'Воспроизвести'),
           url: entry.url,
           season: entry.season,
           episode: entry.episode,
-          subtitles: entry.subtitles,
-          duration: entry.duration
+          subtitles: entry.subtitles || [],
+          duration: entry.duration || 0,
+          timeline: { time: 0, duration: entry.duration || 0 }
         };
       });
 
-      var target = playlist[items.indexOf(item)] || {
-        title: item.title,
+      var target = playlist[index] || {
+        title: item.title || 'Воспроизвести',
         url: item.url,
         season: item.season,
         episode: item.episode,
-        subtitles: item.subtitles,
-        duration: item.duration
+        subtitles: item.subtitles || [],
+        duration: item.duration || 0,
+        timeline: { time: 0, duration: item.duration || 0 }
       };
 
       target.isonline = true;
-      if (playlist.length > 1) target.playlist = playlist;
+      if (playlist.length > 1) {
+        target.playlist = playlist;
+      }
 
-      Lampa.Player.play(target);
-      Lampa.Player.playlist(playlist);
+      try {
+        Lampa.Player.play(target);
+        if (playlist.length > 1) {
+          Lampa.Player.playlist(playlist);
+        }
+      } catch (err) {
+        console.error('KinogoUA Player Error:', err);
+        Lampa.Noty.show('Ошибка запуска плеера');
+      }
     };
 
     this.enableController = function () {
