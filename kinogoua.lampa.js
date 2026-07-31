@@ -154,12 +154,17 @@
     this.activity = object.activity;
 
     function getMovieHash() {
-      return Lampa.Utils.hash(object.movie.number_of_seasons ? object.movie.original_name : object.movie.original_title);
+      var cardObj = (object && object.movie) || object || {};
+      var key = cardObj.number_of_seasons ? (cardObj.original_name || cardObj.name || cardObj.title) : (cardObj.original_title || cardObj.title || cardObj.name || '');
+      return Lampa.Utils.hash(key || 'kinogoua_default');
     }
 
     function clarificationAdd(value) {
       var id = getMovieHash();
       var all = Lampa.Storage.get('clarification_search', '{}');
+      if (typeof all === 'string') {
+        try { all = JSON.parse(all); } catch (e) { all = {}; }
+      }
       all[id] = value;
       Lampa.Storage.set('clarification_search', all);
     }
@@ -167,8 +172,20 @@
     function clarificationDelete() {
       var id = getMovieHash();
       var all = Lampa.Storage.get('clarification_search', '{}');
+      if (typeof all === 'string') {
+        try { all = JSON.parse(all); } catch (e) { all = {}; }
+      }
       delete all[id];
       Lampa.Storage.set('clarification_search', all);
+    }
+
+    function clarificationGet() {
+      var id = getMovieHash();
+      var all = Lampa.Storage.get('clarification_search', '{}');
+      if (typeof all === 'string') {
+        try { all = JSON.parse(all); } catch (e) { all = {}; }
+      }
+      return all[id];
     }
 
     function apiRequest(path, success, failure) {
@@ -191,7 +208,7 @@
       filter.onSearch = function (value) {
         clarificationAdd(value);
         object.search = value;
-        _this.startSearch(value);
+        _this.startSearch(value, true);
       };
 
       filter.onBack = function () {
@@ -203,8 +220,10 @@
         if (type === 'filter') {
           if (a.reset) {
             clarificationDelete();
-            object.search = object.movie.title || object.movie.name;
-            _this.startSearch(object.search);
+            object.search = '';
+            var cardObj = (object && object.movie) || object || {};
+            var title = cardObj.title || cardObj.name || '';
+            _this.startSearch(title, false);
           } else if (a.stype === 'season' && loaded_content && loaded_content.seasons) {
             selected_season_index = b.index;
             _this.renderEpisodesForSeason(selected_season_index);
@@ -239,8 +258,10 @@
       files.appendHead(filterRender);
       scroll.minus(files.render().find('.explorer__files-head'));
 
-      var initialSearch = object.search || object.movie.title || object.movie.name || object.movie.original_title || object.movie.original_name;
-      this.startSearch(initialSearch);
+      var stored = clarificationGet();
+      var cardObj = (object && object.movie) || object || {};
+      var initialSearch = stored || object.search || cardObj.title || cardObj.name || cardObj.original_title || cardObj.original_name || '';
+      this.startSearch(initialSearch, !!stored || !!object.clarification);
     };
 
     this.loading = function (status) {
@@ -267,33 +288,39 @@
       this.enableController();
     };
 
-    this.startSearch = function (query) {
+    this.startSearch = function (query, isClarification) {
       var _this = this;
-      if (!query) return this.empty('Не указано название для поиска');
+      var cardObj = (object && object.movie) || object || {};
+      var queryToUse = query || clarificationGet() || cardObj.title || cardObj.name || cardObj.original_title || cardObj.original_name || '';
+
+      if (!queryToUse) return this.empty('Не указано название для поиска');
 
       user_selected_search_item = false;
       this.loading(true);
-      apiRequest('/v1/search?q=' + encodeURIComponent(query), function (response) {
+
+      var title = cardObj.title || cardObj.name || '';
+      var original_title = cardObj.original_title || cardObj.original_name || '';
+      var year = (cardObj.release_date || cardObj.first_air_date || cardObj.year || '').toString().slice(0, 4);
+      var serial = (cardObj.name || cardObj.number_of_seasons || cardObj.first_air_date) ? '1' : '0';
+      var isClarify = (isClarification !== undefined) ? isClarification : (!!clarificationGet() || !!object.clarification);
+
+      var searchUrl = '/v1/search?q=' + encodeURIComponent(queryToUse)
+        + '&title=' + encodeURIComponent(title)
+        + '&original_title=' + encodeURIComponent(original_title)
+        + '&year=' + encodeURIComponent(year)
+        + '&serial=' + encodeURIComponent(serial)
+        + '&clarification=' + (isClarify ? '1' : '0');
+
+      apiRequest(searchUrl, function (response) {
         if (!_this.isActive()) return;
         if (!response || !response.results || !response.results.length) {
-          return _this.empty('Ничего не найдено по запросу: ' + query);
+          return _this.empty('Ничего не найдено по запросу: ' + queryToUse);
         }
 
         search_results = response.results;
 
-        var targetYear = (object.movie.year || (object.movie.first_air_date ? object.movie.first_air_date.substr(0, 4) : '')) + '';
-        var matchedResult = null;
-
-        if (search_results.length === 1) {
-          matchedResult = search_results[0];
-        } else if (targetYear) {
-          matchedResult = search_results.find(function (r) {
-            return r.year && String(r.year) === targetYear;
-          });
-        }
-
-        if (matchedResult) {
-          _this.loadContent(matchedResult.url);
+        if (!isClarify && response.exactMatch && response.matchedUrl) {
+          _this.loadContent(response.matchedUrl);
         } else {
           _this.renderSearchResults(search_results);
         }
@@ -619,17 +646,23 @@
       resetTemplates();
       Lampa.Component.add('kinogoua', KinogoUAComponent);
 
-      var title = event.movie.title || event.movie.name || event.movie.original_title || event.movie.original_name;
-      var id = Lampa.Utils.hash(event.movie.number_of_seasons ? event.movie.original_name : event.movie.original_title);
+      var cardObj = event.movie || {};
+      var key = cardObj.number_of_seasons ? (cardObj.original_name || cardObj.name || cardObj.title) : (cardObj.original_title || cardObj.title || cardObj.name || '');
+      var id = Lampa.Utils.hash(key || 'kinogoua_default');
       var all = Lampa.Storage.get('clarification_search', '{}');
+      if (typeof all === 'string') {
+        try { all = JSON.parse(all); } catch (e) { all = {}; }
+      }
+      var title = cardObj.title || cardObj.name || cardObj.original_title || cardObj.original_name || '';
 
       Lampa.Activity.push({
         url: '',
         title: 'KinogoUA',
         component: 'kinogoua',
         search: all[id] ? all[id] : title,
-        movie: event.movie,
-        page: 1
+        movie: cardObj,
+        page: 1,
+        clarification: all[id] ? true : false
       });
     });
 
