@@ -107,6 +107,7 @@
     var loaded_content = null;
     var selected_season_index = 0;
     var user_selected_search_item = false;
+    var filter_is_open = false;
 
     this.activity = object.activity;
 
@@ -152,7 +153,8 @@
       };
 
       filter.onBack = function () {
-        _this.back();
+        filter_is_open = false;
+        _this.start();
       };
 
       filter.onSelect = function (type, a, b) {
@@ -175,10 +177,16 @@
       filterRender.find('.filter--sort span').text('Источник');
 
       filterRender.find('.filter--open, .filter--filter').on('hover:enter click', function () {
+        filter_is_open = true;
         filter.show('Фильтр', 'filter');
       });
       filterRender.find('.filter--sort').on('hover:enter click', function () {
+        filter_is_open = true;
         filter.show('Источник', 'sort');
+      });
+
+      filterRender.find('.filter--back').on('hover:enter click', function () {
+        _this.back();
       });
 
       filter.set('sort', [{ title: 'KinogoUA', source: 'kinogoua', selected: true }]);
@@ -483,6 +491,7 @@
           if (Lampa.Navigator.canmove('right')) {
             Lampa.Navigator.move('right');
           } else {
+            filter_is_open = true;
             filter.show('Фильтр', 'filter');
           }
         },
@@ -494,7 +503,12 @@
           }
         },
         back: function back() {
-          _this.back();
+          if (filter_is_open) {
+            filter_is_open = false;
+            _this.enableController();
+          } else {
+            _this.back();
+          }
         }
       });
       Lampa.Controller.toggle('content');
