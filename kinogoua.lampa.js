@@ -108,6 +108,8 @@
     var current_view = 'none'; // 'search', 'seasons', 'episodes', 'error'
     var selected_season = null;
 
+    this.activity = object.activity;
+
     function getMovieHash() {
       return Lampa.Utils.hash(object.movie.number_of_seasons ? object.movie.original_name : object.movie.original_title);
     }
@@ -135,6 +137,10 @@
         headers: { 'skip_zrok_interstitial': '1' }
       });
     }
+
+    this.isActive = function () {
+      return !this.activity || (Lampa.Activity.active() && Lampa.Activity.active().activity === this.activity);
+    };
 
     this.initialize = function () {
       var _this = this;
@@ -176,12 +182,19 @@
 
     this.loading = function (status) {
       if (status) {
+        if (this.activity && this.activity.loader) this.activity.loader(true);
         scroll.clear();
         scroll.append(Lampa.Template.get('kinogoua_content_loading', {}));
+      } else {
+        if (this.activity && this.activity.loader) {
+          this.activity.loader(false);
+          this.activity.toggle();
+        }
       }
     };
 
     this.empty = function (message) {
+      this.loading(false);
       current_view = 'error';
       scroll.clear();
       var emptyEl = Lampa.Template.get('kinogoua_does_not_answer', {
@@ -198,7 +211,7 @@
 
       this.loading(true);
       apiRequest('/v1/search?q=' + encodeURIComponent(query), function (response) {
-        if (Lampa.Activity.active().activity !== _this.activity) return;
+        if (!_this.isActive()) return;
         if (!response || !response.results || !response.results.length) {
           return _this.empty('Ничего не найдено по запросу: ' + query);
         }
@@ -210,13 +223,14 @@
           _this.renderSearchResults(search_results);
         }
       }, function (err) {
-        if (Lampa.Activity.active().activity !== _this.activity) return;
+        if (!_this.isActive()) return;
         _this.empty(err);
       });
     };
 
     this.renderSearchResults = function (results) {
       var _this = this;
+      this.loading(false);
       current_view = 'search';
       scroll.clear();
 
@@ -246,7 +260,7 @@
       this.loading(true);
 
       apiRequest('/v1/content?url=' + encodeURIComponent(url), function (content) {
-        if (Lampa.Activity.active().activity !== _this.activity) return;
+        if (!_this.isActive()) return;
         if (!content || !content.kind) {
           return _this.empty((content && content.error) || 'Не удалось загрузить данные источника');
         }
@@ -254,12 +268,13 @@
         loaded_content = content;
         _this.renderContent(content);
       }, function (err) {
-        if (Lampa.Activity.active().activity !== _this.activity) return;
+        if (!_this.isActive()) return;
         _this.empty(err);
       });
     };
 
     this.renderContent = function (content) {
+      this.loading(false);
       if (content.kind === 'series') {
         if (content.seasons && content.seasons.length === 1) {
           this.showSeasonEpisodes(content.seasons[0]);
@@ -273,6 +288,7 @@
 
     this.renderSeasonsList = function (seasons) {
       var _this = this;
+      this.loading(false);
       current_view = 'seasons';
       scroll.clear();
 
@@ -298,6 +314,7 @@
 
     this.showSeasonEpisodes = function (season) {
       var _this = this;
+      this.loading(false);
       selected_season = season;
       current_view = 'episodes';
       scroll.clear();
@@ -341,6 +358,7 @@
 
     this.renderMovieEpisodes = function (episodes) {
       var _this = this;
+      this.loading(false);
       current_view = 'episodes';
       scroll.clear();
 
@@ -447,8 +465,12 @@
       Lampa.Controller.toggle('content');
     };
 
+    this.create = function () {
+      return this.render();
+    };
+
     this.start = function () {
-      if (Lampa.Activity.active().activity !== this.activity) return;
+      if (this.activity && Lampa.Activity.active().activity !== this.activity) return;
       if (!initialized) {
         initialized = true;
         this.initialize();
